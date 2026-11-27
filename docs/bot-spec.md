@@ -1,23 +1,23 @@
-# `BOTPACK.md` — format v0.1
+# `BOTPACK.md` — Specification v0.1
 
-A botpack is a single Markdown file that describes one bot well enough for another harness to rebuild it.
+A `BOTPACK.md` file is a single Markdown document that describes **one bot** well enough for another agent harness to rebuild it without guessing.
 
-Two audiences, one file:
+It serves two audiences in one file:
 
-- **Machine** — the YAML frontmatter, plus the tables. Parsed, diffed, imported.
-- **Human** — the prose. Read, edited, trusted. If the frontmatter and the prose disagree, the prose wins and the import reports a conflict.
+- **Machine** — the YAML frontmatter and structured Markdown tables. Parsed, validated, diffed, and imported.
+- **Human** — the prose sections. Read, audited, edited, and trusted. If frontmatter and prose ever disagree, **the prose wins** and the importer must report a conflict.
 
 ---
 
 ## Rules
 
-1. **One bot per file.** If you have three bots, you have three packs and a `handoffs:` section linking them.
-2. **No secrets, ever.** Write `$GITHUB_TOKEN`, not `ghp_…`. An import that needs a value stops and asks.
-3. **No transcripts.** Carry conclusions, not conversations. A pack that quotes a chat log is a pack nobody will read.
+1. **One bot per file.** If a system has three bots, it has three packs linked by `handoff_targets` in frontmatter and `## 5. Handoffs` in the body.
+2. **No secrets, ever.** Write `$GITHUB_TOKEN`, never `ghp_…`. An importer that encounters an unresolved `$VAR` must stop and ask.
+3. **No transcripts.** Carry distilled conclusions and pointers, never conversation logs. A pack that quotes chat history is a pack nobody will read.
 4. **Every routine needs a trigger and a definition of done.** "Check things daily" is not a routine.
-5. **Declare your losses.** Section 7 is mandatory. An empty section means "I checked and nothing is lost", not "I didn't look".
-6. **Under 400 lines.** Past that, split the bot. A pack that doesn't fit in one read isn't portable.
-7. **Frontmatter is the contract, prose is the nuance.** Keep frontmatter to what an importer can act on.
+5. **Declare your losses.** Section 7 (`Portability`) is mandatory. An empty section means "I checked and nothing is lost," never "I skipped looking."
+6. **Under 400 lines.** Past 400 lines, split the bot or move reference material behind pointers. A pack that does not fit in one read is not portable.
+7. **Frontmatter is the contract; prose is the nuance.** Keep frontmatter strictly to fields an importer can act on.
 
 ---
 
@@ -26,7 +26,7 @@ Two audiences, one file:
 ```yaml
 ---
 botport: 0.1                     # format version, required
-name: morning-brief              # slug, required, unique
+name: morning-brief              # unique slug, required
 summary: >                       # one sentence, required
   Builds a 7am briefing from email, calendar, and overnight CI.
 source:                          # required
@@ -35,87 +35,107 @@ source:                          # required
   captured: 2026-11-28
 role: briefer                    # briefer | builder | reviewer | router | researcher
 model:
-  preferred: claude-opus-4-5     # advisory only
+  preferred: claude-opus-4-5     # advisory hint only
   class: fast                    # frontier | standard | fast | cheap
-  reasoning: low
-tags: [daily, email, calendar]
-handoff_targets: [fixer]         # names of bots this one escalates to
+  reasoning: low                 # optional: low | medium | high
+tags: [daily, email, calendar]   # optional
+handoff_targets: [fixer]         # names of bots listed in ## 5. Handoffs
 ---
 ```
 
-`model.class` is the field that actually ports. `model.preferred` is a hint the importer may ignore.
+### Frontmatter fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `botport` | Yes | Spec version (`0.1`). Importers must refuse unknown major versions. |
+| `name` | Yes | Lowercase slug identifying the bot across handoffs and lineage. |
+| `summary` | Yes | One-sentence description of what the bot does. |
+| `source.harness` | Yes | Harness the pack was exported from (e.g. `claude-code`, `codex`, `gemini-cli`, `openclaw`). |
+| `source.version` | Recommended | Harness version string at capture time. |
+| `source.captured` | Yes | ISO date (`YYYY-MM-DD`) of export. |
+| `role` | Recommended | Primary function: `briefer`, `builder`, `reviewer`, `router`, or `researcher`. |
+| `model.class` | Yes | Portable capability tier (`frontier`, `standard`, `fast`, `cheap`). This is what actually ports. |
+| `model.preferred` | Optional | Source model ID. Advisory only — the importer may ignore it. |
+| `model.reasoning` | Optional | Reasoning effort hint (`low`, `medium`, `high`). |
+| `tags` | Optional | Discovery and grouping tags. |
+| `handoff_targets` | Optional | Bot slugs referenced in `## 5. Handoffs`. Should match the `To` column. |
 
 ---
 
-## Body
+## Body sections
+
+Use numbered `##` headings in order so both humans and parsers can scan predictably.
 
 ### 1. Job
 
-Three sentences maximum. What it is for, what it produces, what it must never do. This section is what a human reads to decide whether to import the pack at all.
+Three sentences maximum: what the bot is for, what it produces, and what it must never do. Humans read this first to decide whether to import the pack at all.
 
 ### 2. Operating rules
 
-Bullet list of behavioural constraints. Tone, escalation threshold, things it refuses. These become the target's instruction file or the subagent's `developer_instructions`.
+A bullet list of behavioral constraints — tone, timezone, escalation thresholds, and hard refusals. On import, these map into the target's instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) or subagent instructions.
 
 ```markdown
-- Reply in the user's timezone, 24h clock.
-- Never send anything to a channel without a draft-first pass.
-- If a source is down, say so in one line and continue; do not retry more than twice.
+- Use 24-hour time in `Asia/Kolkata`.
+- Never send anything to an external channel without a draft-first pass.
+- If a source is down, note it in one line and continue; retry at most twice.
 ```
 
 ### 3. Capabilities
 
-Three subsections. List only what the bot *depends* on — not everything the harness offers.
+Three subsections. List only what the bot **depends on** — not every tool the source harness happens to expose.
 
-**Tools** — harness-native tools it needs (`shell`, `read`, `web_fetch`, `browser`).
+**Tools** — harness-native primitives required (`shell`, `read`, `write`, `web_fetch`, `browser`).
 
-**MCP servers** — name, transport, and the env vars required. No values.
+**MCP servers** — name, transport (`http` or `stdio`), required `$ENV_VAR` names, and tools used. Never include token values or credentials.
 
 | Server | Transport | Needs | Tools used |
 |--------|-----------|-------|------------|
 | `gmail` | http | `$GMAIL_OAUTH` | `search`, `read` |
 | `gh` | stdio | `$GITHUB_TOKEN` | `list_prs`, `ci_status` |
 
-**Skills** — by name, with the trigger that made them necessary.
+**Skills** — referenced by name, with the reason the bot depends on each.
 
 | Skill | Why |
 |-------|-----|
-| `daily-brief` | Formats the digest consistently |
+| `daily-brief` | Formats the digest consistently for a 30-second scan |
 
 ### 4. Routines
 
-The section most packs will get wrong, and the one that makes a bot a bot.
+The section that separates a bot from a one-off prompt. Every row must specify a trigger and a concrete completion condition.
 
 | Name | Trigger | Cadence | Action | Done when |
 |------|---------|---------|--------|-----------|
 | `morning` | schedule | `0 7 * * 1-5` | Collect email + calendar + CI, write digest | Digest posted to `#daily` |
-| `ci-watch` | event | PR opened | Poll checks, summarize failures | Comment on PR or silence |
-| `weekly` | schedule | `0 16 * * 5` | Roll up the week, flag drift | Summary in `#weekly` |
+| `ci-watch` | event | PR opened | Poll checks, summarize failures | Comment on PR or silence if green |
+| `weekly` | schedule | `0 16 * * 5` | Roll up the week, flag drift | Summary posted in `#weekly` |
 
-`Trigger` is one of `schedule`, `event`, `manual`, `heartbeat`. The cron expression travels; the trigger *mechanism* does not — the importer maps it to whatever the target has (cron job, cloud routine, heartbeat tick, webhook).
+`Trigger` must be one of `schedule`, `event`, `manual`, or `heartbeat`. Cron expressions travel cleanly; the trigger *mechanism* does not — the importer maps it to whatever the target supports (cron job, cloud routine, heartbeat tick, or webhook).
 
 ### 5. Handoffs
 
-Where traceability lives. A bot that escalates must say so in a form another bot can act on.
+Where cross-bot traceability lives. A bot that escalates or delegates must declare the contract in prose so another bot in any harness can act on it.
 
 | When | To | Carry | Expect back |
 |------|----|-------|-------------|
 | CI red on `main` | `fixer` | failing job, log excerpt, commit range | PR link or "cannot reproduce" |
-| Email needs a reply | `drafter` | thread id, tone constraint | draft text |
+| Email needs a reply | `drafter` | thread id, tone constraint, deadline | unposted draft text |
 
-`Carry` is the payload contract — the minimum the receiving bot needs. `Expect back` is the return contract. Both are prose so they survive any transport.
+- `Carry` is the **payload contract** — the minimum context the receiving bot needs.
+- `Expect back` is the **return contract** — what the sender waits for before considering the handoff closed.
 
 ### 6. Memory
 
-**Durable facts** — conclusions worth carrying. A dozen lines, not a log.
+Carry distilled knowledge, not raw history.
+
+**Durable facts** — stable operational conclusions worth carrying forward (roughly a dozen lines, never a log).
 
 ```markdown
 - Standup is 09:30 IST; the digest must land before it.
 - `#daily` is read by the whole team — no internal codenames.
-- CI on `main` is flaky on `integration-tests`; retry once before escalating.
+- `integration-tests` on `main` is flaky; retry once before escalating.
 ```
 
-**Pointers** — where the rest lives. Files, URLs, repo paths. Never inline the content.
+**Pointers** — paths and URLs where detailed templates, runbooks, or trackers live. Never inline large reference files.
 
 ```markdown
 - Runbook: `docs/oncall.md`
@@ -124,52 +144,67 @@ Where traceability lives. A bot that escalates must say so in a form another bot
 
 ### 7. Portability
 
-Mandatory. Written by the exporter, read by the importer.
+Mandatory. Drafted by the exporter, verified by the importer. Make every non-trivial dependency or loss explicit.
 
 ```markdown
 ### Rebuild on import
-- `daily-brief` skill — copy the folder, it is format-compatible
-- `gmail` MCP server — re-add and re-auth OAuth
+- `daily-brief` skill — copy folder; format-compatible across harnesses
+- `gmail` MCP server — re-add server and complete OAuth flow
 - `morning` routine — cron expression is portable; trigger must be recreated
 
 ### Do not copy
 - Auto-memory store — summarized into Durable facts above
-- `PreToolUse` guard hook — no equivalent; becomes `workspace-write` sandbox
+- `PreToolUse` guard hook — no equivalent; enforce via `workspace-write` sandbox
 - Session history — machine-local and private
 ```
 
 ### 8. Lineage
 
-Append-only. One line per hop.
+Append-only hop log. One row per creation or migration.
 
 ```markdown
 | Date | From | To | Note |
 |------|------|----|------|
+| 2026-11-14 | — | claude-code | Built from scratch |
 | 2026-11-28 | claude-code | codex | Initial port; hooks dropped, sandbox tightened |
 ```
 
-A chain you can't trace is a chain you can't debug.
+A handoff chain you cannot trace is a handoff chain you cannot debug.
 
 ---
 
-## Import contract
+## Export & import contracts
 
-Given a valid pack, an importer must:
+### Export contract
 
-1. **Validate** frontmatter; refuse on unknown `botport` major version.
-2. **Detect** the target harness and report which sections map cleanly.
-3. **Write** instructions, skills, MCP entries, and routines into native locations.
-4. **Stop** on any `$VAR` it cannot resolve, and list them.
-5. **Report** every loss from section 7 plus anything it discovered.
-6. **Never** overwrite without a diff shown first.
+Given an active bot in a source harness, an exporter must:
 
-Steps 4 and 5 are the point. A silent import is a bug.
+1. **Extract** instructions, dependent tools, MCP entries, skills, routines, and handoff contracts.
+2. **Strip** all secret values, replacing them with `$ENV_VAR` references.
+3. **Distill** durable facts from memory stores without copying raw transcripts.
+4. **Populate** Section 7 (`Portability`) with known harness-specific gaps.
+5. **Respect** the 400-line ceiling and append or initialize Section 8 (`Lineage`).
+
+### Import contract
+
+Given a valid `BOTPACK.md`, an importer must:
+
+1. **Validate** frontmatter; refuse on an unknown `botport` major version and warn if frontmatter conflicts with body prose.
+2. **Detect** the target harness and map each section to native files and conventions.
+3. **Write** instructions, skills, MCP entries, and routine definitions into target locations.
+4. **Stop** on any `$VAR` it cannot resolve and list every missing variable.
+5. **Report** every loss from Section 7 plus any additional incompatibilities discovered during import.
+6. **Never** overwrite existing configuration without showing a diff first.
+
+Steps 4 and 5 are the point. **A silent import is a bug.**
 
 ---
 
-## Open questions for v0.2
+## Open questions for `v0.2`
 
-- Should routines carry a `timezone` field separate from cadence? (Currently implied by prose.)
-- Do we need `handoff_targets` to be resolvable *files* rather than names, so a chain can be walked offline?
-- Is `role` a closed enum, or should it be free text with `tags` doing the work?
-- How much of section 6 belongs in the pack vs a linked `MEMORY.md`?
+Contributions and discussion are especially welcome on these open design questions:
+
+- Should routines carry an explicit `timezone` field separate from cadence (currently stated in Operating rules)?
+- Should `handoff_targets` resolve to relative pack paths (e.g. `./fixer.BOTPACK.md`) in addition to slugs, so multi-bot graphs can be validated offline?
+- Should `role` stay a closed enum or become free text with `tags` carrying classification?
+- Where is the clean line between inline `Memory` (Section 6) and a linked `MEMORY.md` file?
