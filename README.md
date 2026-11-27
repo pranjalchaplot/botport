@@ -146,7 +146,13 @@ botport/
 │   └── ISSUE_TEMPLATE/
 │       ├── spec-feedback.md               Spec proposals and v0.2 open questions
 │       └── harness-gap.md                 Missing harness primitives or portability quirks
-└── skills/                                (planned) Agent-facing export & import skills
+└── skills/
+    ├── botport-export/
+    │   └── SKILL.md                       Reads active harness config, emits a valid BOTPACK.md
+    ├── botport-import/
+    │   └── SKILL.md                       Parses BOTPACK.md, maps to native config, reports losses
+    └── botport-validate/
+        └── SKILL.md                       Lints a BOTPACK.md against the v0.1 spec
 ```
 
 ---
@@ -155,8 +161,9 @@ botport/
 
 - [x] Feature scan across Claude Code, Codex CLI, Gemini CLI, OpenClaw, and prior art
 - [x] `BOTPACK.md` v0.1 format specification and worked example
-- [ ] `botport-export` skill — reads the active harness and emits a valid `BOTPACK.md`
-- [ ] `botport-import` skill — reads `BOTPACK.md`, writes native config, stops on missing `$VAR`s, and reports losses
+- [x] `botport-export` skill — reads the active harness and emits a valid `BOTPACK.md`
+- [x] `botport-import` skill — reads `BOTPACK.md`, writes native config, stops on missing `$VAR`s, and reports losses
+- [x] `botport-validate` skill — lints a `BOTPACK.md` against the v0.1 spec
 - [ ] Round-trip portability tests across at least two real harnesses
 - [ ] `v0.2` spec refinement (routine timezones, offline resolvable handoffs, linked memory boundaries)
 
